@@ -170,7 +170,6 @@ BRp.findLoopPoints = function( edge, pairInfo, i, edgeIsUnbundled ){
 
   let j = i;
   let loopDist = stepSize;
-
   if( edgeIsUnbundled ){
     j = 0;
     loopDist = ctrlptDist;
@@ -184,6 +183,7 @@ BRp.findLoopPoints = function( edge, pairInfo, i, edgeIsUnbundled ){
   let dc = String(loopDir + '_' + loopSwp);
   j = dirCounts[dc] === undefined ? dirCounts[dc] = 0 : ++dirCounts[dc];
 
+  // We'll assign two control points near the midpoint, forming a gentle curve
   rs.ctrlpts = [
     srcPos.x + Math.cos(outAngle) * 1.4 * loopDist * (j / 3 + 1),
     srcPos.y + Math.sin(outAngle) * 1.4 * loopDist * (j / 3 + 1),
@@ -193,17 +193,31 @@ BRp.findLoopPoints = function( edge, pairInfo, i, edgeIsUnbundled ){
 };
 
 BRp.findCompoundLoopPoints = function( edge, pairInfo, i, edgeIsUnbundled ){
-  // Compound edge
+  // --- LOGGING (to confirm your custom code is being used) ---
+  const src = edge.source();
+  const tgt = edge.target();
+  console.log(
+      '[Cytoscape Forked] Using custom findCompoundLoopPoints() for edge:',
+      edge.id(),
+      ' src:',
+      src.id(),
+      ' tgt:',
+      tgt.id()
+  );
+  // -----------------------------------------------------------
 
   const rs = edge._private.rscratch;
+  rs.edgeType = 'compound'; // The library sees it as a "compound edge" but we'll treat it like a normal node center
 
-  rs.edgeType = 'compound';
+  // Destructure positions (the centers) from pairInfo
+  const { srcPos, tgtPos } = pairInfo;
 
-  const { srcPos, tgtPos, srcW, srcH, tgtW, tgtH } = pairInfo;
+  // Read style properties
   const stepSize = edge.pstyle('control-point-step-size').pfValue;
   const ctrlptDists = edge.pstyle('control-point-distances');
   const ctrlptDist = ctrlptDists ? ctrlptDists.pfValue[0] : undefined;
 
+  // Determine index/offset
   let j = i;
   let loopDist = stepSize;
 
@@ -212,36 +226,38 @@ BRp.findCompoundLoopPoints = function( edge, pairInfo, i, edgeIsUnbundled ){
     loopDist = ctrlptDist;
   }
 
-  let loopW = 50;
-
-  let loopaPos = {
-    x: srcPos.x - srcW / 2,
-    y: srcPos.y - srcH / 2
+  // Instead of bounding-box corners, just use node centers:
+  const loopaPos = {
+    x: srcPos.x,
+    y: srcPos.y
   };
 
-  let loopbPos = {
-    x: tgtPos.x - tgtW / 2,
-    y: tgtPos.y - tgtH / 2
+  const loopbPos = {
+    x: tgtPos.x,
+    y: tgtPos.y
   };
 
-  let loopPos = {
-    x: Math.min( loopaPos.x, loopbPos.x ),
-    y: Math.min( loopaPos.y, loopbPos.y )
+  // We'll define a midpoint for the control points so the edge has a slight "loop"
+  const midpoint = {
+    x: (loopaPos.x + loopbPos.x) / 2,
+    y: (loopaPos.y + loopbPos.y) / 2
   };
 
-  // avoids cases with impossible beziers
-  let minCompoundStretch = 0.5;
-  let compoundStretchA = Math.max( minCompoundStretch, Math.log( srcW * 0.01 ) );
-  let compoundStretchB = Math.max( minCompoundStretch, Math.log( tgtW * 0.01 ) );
+  // Create a small offset for the control points so that the line isn't totally straight
+  // (This is just an example of a slight curve. Feel free to adjust offset logic as you wish.)
+  const offset = loopDist * (j + 1);
 
   rs.ctrlpts = [
-    loopPos.x,
-    loopPos.y - (1 + Math.pow( loopW, 1.12 ) / 100) * loopDist * (j / 3 + 1) * compoundStretchA,
-
-    loopPos.x - (1 + Math.pow( loopW, 1.12 ) / 100) * loopDist * (j / 3 + 1) * compoundStretchB,
-    loopPos.y
+    midpoint.x, midpoint.y - offset,
+    midpoint.x - offset, midpoint.y
   ];
 
+  // (Optionally, more logs if you want to see the actual control points in console)
+  console.log(
+      '[Cytoscape Forked] Control points set for edge:',
+      edge.id(),
+      rs.ctrlpts
+  );
 };
 
 BRp.findStraightEdgePoints = function( edge ){
