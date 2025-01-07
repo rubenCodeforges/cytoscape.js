@@ -195,7 +195,6 @@ CRp.drawLayeredElements = function( context, eles, pxRatio, extent ){
   let r = this;
 
   let layers = r.data.lyrTxrCache.getLayers( eles, pxRatio );
-  console.log('Layers', layers);
   if( layers ){
     for( let i = 0; i < layers.length; i++ ){
       let layer = layers[i];
