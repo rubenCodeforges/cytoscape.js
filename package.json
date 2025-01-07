@@ -64,7 +64,7 @@
     "build:min": "cross-env FILE=min rollup -c",
     "clean": "rimraf build/*",
     "copyright": "node -r esm license-update",
-    "dist:copy": "cpy --flat dist/cytoscape.umd.js build/cytoscape.min.js build/cytoscape.cjs.js build/cytoscape.esm.mjs build/cytoscape.esm.min.mjs dist",
+    "dist:copy": "cpy --flat build/cytoscape.umd.js build/cytoscape.min.js build/cytoscape.cjs.js build/cytoscape.esm.mjs build/cytoscape.esm.min.mjs dist",
     "dist": "cross-env NODE_ENV=production run-s build dist:*",
     "release": "run-s copyright dist docs",
     "watch": "run-s watch:fast",
