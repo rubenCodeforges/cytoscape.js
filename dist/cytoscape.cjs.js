@@ -24803,7 +24803,6 @@ BRp$c.findHaystackPoints = function (edges) {
 
 BRp$c.findSegmentsPoints = function (edge, pairInfo) {
   // Segments (multiple straight lines)
-  console.log('[FIND SEGMENTS CALLED]');
   var rs = edge._private.rscratch;
   var segmentWs = edge.pstyle('segment-weights');
   var segmentDs = edge.pstyle('segment-distances');
@@ -24861,49 +24860,56 @@ BRp$c.findLoopPoints = function (edge, pairInfo, i, edgeIsUnbundled) {
   var inAngle = loopAngle + loopSwp / 2; // increase by step size for overlapping loops, keyed on direction and sweep values
 
   var dc = String(loopDir + '_' + loopSwp);
-  j = dirCounts[dc] === undefined ? dirCounts[dc] = 0 : ++dirCounts[dc];
+  j = dirCounts[dc] === undefined ? dirCounts[dc] = 0 : ++dirCounts[dc]; // We'll assign two control points near the midpoint, forming a gentle curve
+
   rs.ctrlpts = [srcPos.x + Math.cos(outAngle) * 1.4 * loopDist * (j / 3 + 1), srcPos.y + Math.sin(outAngle) * 1.4 * loopDist * (j / 3 + 1), srcPos.x + Math.cos(inAngle) * 1.4 * loopDist * (j / 3 + 1), srcPos.y + Math.sin(inAngle) * 1.4 * loopDist * (j / 3 + 1)];
 };
 
 BRp$c.findCompoundLoopPoints = function (edge, pairInfo, i, edgeIsUnbundled) {
-  // Compound edge
+  // --- LOGGING (to confirm your custom code is being used) ---
+  var src = edge.source();
+  var tgt = edge.target();
+  console.log('[Cytoscape Forked] Using custom findCompoundLoopPoints() for edge:', edge.id(), ' src:', src.id(), ' tgt:', tgt.id()); // -----------------------------------------------------------
+
   var rs = edge._private.rscratch;
-  rs.edgeType = 'compound';
+  rs.edgeType = 'compound'; // The library sees it as a "compound edge" but we'll treat it like a normal node center
+  // Destructure positions (the centers) from pairInfo
+
   var srcPos = pairInfo.srcPos,
-      tgtPos = pairInfo.tgtPos,
-      srcW = pairInfo.srcW,
-      srcH = pairInfo.srcH,
-      tgtW = pairInfo.tgtW,
-      tgtH = pairInfo.tgtH;
+      tgtPos = pairInfo.tgtPos; // Read style properties
+
   var stepSize = edge.pstyle('control-point-step-size').pfValue;
   var ctrlptDists = edge.pstyle('control-point-distances');
-  var ctrlptDist = ctrlptDists ? ctrlptDists.pfValue[0] : undefined;
+  var ctrlptDist = ctrlptDists ? ctrlptDists.pfValue[0] : undefined; // Determine index/offset
+
   var j = i;
   var loopDist = stepSize;
 
   if (edgeIsUnbundled) {
     j = 0;
     loopDist = ctrlptDist;
-  }
+  } // Instead of bounding-box corners, just use node centers:
 
-  var loopW = 50;
+
   var loopaPos = {
-    x: srcPos.x - srcW / 2,
-    y: srcPos.y - srcH / 2
+    x: srcPos.x,
+    y: srcPos.y
   };
   var loopbPos = {
-    x: tgtPos.x - tgtW / 2,
-    y: tgtPos.y - tgtH / 2
-  };
-  var loopPos = {
-    x: Math.min(loopaPos.x, loopbPos.x),
-    y: Math.min(loopaPos.y, loopbPos.y)
-  }; // avoids cases with impossible beziers
+    x: tgtPos.x,
+    y: tgtPos.y
+  }; // We'll define a midpoint for the control points so the edge has a slight "loop"
 
-  var minCompoundStretch = 0.5;
-  var compoundStretchA = Math.max(minCompoundStretch, Math.log(srcW * 0.01));
-  var compoundStretchB = Math.max(minCompoundStretch, Math.log(tgtW * 0.01));
-  rs.ctrlpts = [loopPos.x, loopPos.y - (1 + Math.pow(loopW, 1.12) / 100) * loopDist * (j / 3 + 1) * compoundStretchA, loopPos.x - (1 + Math.pow(loopW, 1.12) / 100) * loopDist * (j / 3 + 1) * compoundStretchB, loopPos.y];
+  var midpoint = {
+    x: (loopaPos.x + loopbPos.x) / 2,
+    y: (loopaPos.y + loopbPos.y) / 2
+  }; // Create a small offset for the control points so that the line isn't totally straight
+  // (This is just an example of a slight curve. Feel free to adjust offset logic as you wish.)
+
+  var offset = loopDist * (j + 1);
+  rs.ctrlpts = [midpoint.x, midpoint.y - offset, midpoint.x - offset, midpoint.y]; // (Optionally, more logs if you want to see the actual control points in console)
+
+  console.log('[Cytoscape Forked] Control points set for edge:', edge.id(), rs.ctrlpts);
 };
 
 BRp$c.findStraightEdgePoints = function (edge) {
