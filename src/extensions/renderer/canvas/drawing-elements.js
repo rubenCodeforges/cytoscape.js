@@ -118,7 +118,7 @@ CRp.drawCachedElement = function( context, ele, pxRatio, extent, lvl, requestHig
     r.drawElementUnderlay( context, ele );
 
     r.drawCachedElementPortion( context, ele, eleTxrCache, pxRatio, lvl, reason, getZeroRotation, getOpacity );
-    
+
     if( !isEdge || !badLine ){
       r.drawCachedElementPortion( context, ele, lblTxrCache, pxRatio, lvl, reason, getLabelRotation, getTextOpacity );
     }
@@ -145,12 +145,39 @@ CRp.drawElements = function( context, eles ){
 CRp.drawCachedElements = function( context, eles, pxRatio, extent ){
   let r = this;
 
-  for( let i = 0; i < eles.length; i++ ){
-    let ele = eles[ i ];
+  let edges   = [];
+  let parents = [];
+  let leaves  = [];
 
-    r.drawCachedElement( context, ele, pxRatio, extent );
+  // Separate edges, parent (compound) nodes, and leaf nodes
+  for( let i = 0; i < eles.length; i++ ){
+    let ele = eles[i];
+
+    if( ele.isEdge() ){
+      edges.push(ele);
+    } else if( ele.isParent() ){
+      parents.push(ele);
+    } else {
+      leaves.push(ele);
+    }
+  }
+
+  // 1) Draw edges first (behind everything)
+  for( let i = 0; i < edges.length; i++ ){
+    r.drawCachedElement( context, edges[i], pxRatio, extent );
+  }
+
+  // 2) Then draw compound (parent) nodes
+  for( let i = 0; i < parents.length; i++ ){
+    r.drawCachedElement( context, parents[i], pxRatio, extent );
+  }
+
+  // 3) Finally, draw leaf (normal) nodes on top
+  for( let i = 0; i < leaves.length; i++ ){
+    r.drawCachedElement( context, leaves[i], pxRatio, extent );
   }
 };
+
 
 CRp.drawCachedNodes = function( context, eles, pxRatio, extent ){
   let r = this;
@@ -168,7 +195,7 @@ CRp.drawLayeredElements = function( context, eles, pxRatio, extent ){
   let r = this;
 
   let layers = r.data.lyrTxrCache.getLayers( eles, pxRatio );
-
+  console.log('Layers', layers);
   if( layers ){
     for( let i = 0; i < layers.length; i++ ){
       let layer = layers[i];
