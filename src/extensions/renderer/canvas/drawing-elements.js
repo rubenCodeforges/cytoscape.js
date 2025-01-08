@@ -145,38 +145,87 @@ CRp.drawElements = function( context, eles ){
 CRp.drawCachedElements = function( context, eles, pxRatio, extent ){
   let r = this;
 
-  let edges   = [];
-  let parents = [];
-  let leaves  = [];
+  if( !eles || eles.length === 0 ){
+    console.log('[DEBUG] drawCachedElements: No elements, skip drawing');
+    return;
+  }
 
-  // Separate edges, parent (compound) nodes, and leaf nodes
-  for( let i = 0; i < eles.length; i++ ){
-    let ele = eles[i];
+  // 1) Collect all edges in an array, so we can remove them as we draw them
+  let remainingEdges = eles.filter(e => e.isEdge());
 
-    if( ele.isEdge() ){
-      edges.push(ele);
-    } else if( ele.isParent() ){
-      parents.push(ele);
-    } else {
-      leaves.push(ele);
+  // Helper: remove an edge from the array by setting it to null (or splice)
+  function removeEdge(edge){
+    let i = remainingEdges.indexOf(edge);
+    if( i >= 0 ){
+      remainingEdges[i] = null;
     }
   }
 
-  // 1) Draw edges first (behind everything)
-  for( let i = 0; i < edges.length; i++ ){
-    r.drawCachedElement( context, edges[i], pxRatio, extent );
+  // Recursive function
+  function drawCompoundRecursive(node){
+    // 1) Gather edges for 'node'
+    let connectedEdges = [];
+    for( let i = 0; i < remainingEdges.length; i++ ){
+      let e = remainingEdges[i];
+      if( !e ){ continue; }
+      let src = e.source();
+      let tgt = e.target();
+      if( src === node || tgt === node ){
+        connectedEdges.push(e);
+      }
+    }
+
+    // 2) Draw node's edges behind the node
+    for( let i = 0; i < connectedEdges.length; i++ ){
+      let edge = connectedEdges[i];
+      r.drawCachedElement( context, edge, pxRatio, extent );
+      removeEdge(edge);
+    }
+
+    // 3) Draw the compound node itself
+    r.drawCachedElement( context, node, pxRatio, extent );
+
+    // 4) Recurse
+    let childCompounds = node.children().filter( c => c.isParent());
+    let childLeaves    = node.children().filter( c => !c.isParent());
+
+    for( let i = 0; i < childCompounds.length; i++ ){
+      let childCompound = childCompounds[i];
+      drawCompoundRecursive(childCompound);
+    }
+    for( let i = 0; i < childLeaves.length; i++ ){
+      r.drawCachedElement( context, childLeaves[i], pxRatio, extent );
+    }
   }
 
-  // 2) Then draw compound (parent) nodes
-  for( let i = 0; i < parents.length; i++ ){
-    r.drawCachedElement( context, parents[i], pxRatio, extent );
+  // 2) Top-level compounds & leaves
+  let topLevelCompounds = eles.filter(e => e.isNode())
+      .filter(n => n.isParent() && n.parent().empty());
+
+  let topLevelLeaves = eles.filter(e => e.isNode())
+      .filter(n => !n.isParent() && n.parent().empty());
+
+  // 3) Draw top-level compounds (recursively handles child leaves)
+  for( let i = 0; i < topLevelCompounds.length; i++ ){
+    drawCompoundRecursive(topLevelCompounds[i]);
   }
 
-  // 3) Finally, draw leaf (normal) nodes on top
-  for( let i = 0; i < leaves.length; i++ ){
-    r.drawCachedElement( context, leaves[i], pxRatio, extent );
+  // 4) Now draw leftover edges -> behind top-level leaves
+  //    but above any compounds we just drew
+  for( let i = 0; i < remainingEdges.length; i++ ){
+    let e = remainingEdges[i];
+    if( e ){ // not null => not drawn yet
+      r.drawCachedElement( context, e, pxRatio, extent );
+    }
+  }
+
+  // 5) Finally, draw top-level leaves => they end up on top of leftover edges
+  for( let i = 0; i < topLevelLeaves.length; i++ ){
+    r.drawCachedElement( context, topLevelLeaves[i], pxRatio, extent );
   }
 };
+
+
 
 
 CRp.drawCachedNodes = function( context, eles, pxRatio, extent ){

@@ -31518,35 +31518,102 @@ CRp$9.drawElements = function (context, eles) {
 
 CRp$9.drawCachedElements = function (context, eles, pxRatio, extent) {
   var r = this;
-  var edges = [];
-  var parents = [];
-  var leaves = []; // Separate edges, parent (compound) nodes, and leaf nodes
 
-  for (var i = 0; i < eles.length; i++) {
-    var ele = eles[i];
+  if (!eles || eles.length === 0) {
+    console.log('[DEBUG] drawCachedElements: No elements, skip drawing');
+    return;
+  } // 1) Collect all edges in an array, so we can remove them as we draw them
 
-    if (ele.isEdge()) {
-      edges.push(ele);
-    } else if (ele.isParent()) {
-      parents.push(ele);
-    } else {
-      leaves.push(ele);
+
+  var remainingEdges = eles.filter(function (e) {
+    return e.isEdge();
+  }); // Helper: remove an edge from the array by setting it to null (or splice)
+
+  function removeEdge(edge) {
+    var i = remainingEdges.indexOf(edge);
+
+    if (i >= 0) {
+      remainingEdges[i] = null;
     }
-  } // 1) Draw edges first (behind everything)
+  } // Recursive function
 
 
-  for (var _i = 0; _i < edges.length; _i++) {
-    r.drawCachedElement(context, edges[_i], pxRatio, extent);
-  } // 2) Then draw compound (parent) nodes
+  function drawCompoundRecursive(node) {
+    // 1) Gather edges for 'node'
+    var connectedEdges = [];
+
+    for (var i = 0; i < remainingEdges.length; i++) {
+      var e = remainingEdges[i];
+
+      if (!e) {
+        continue;
+      }
+
+      var src = e.source();
+      var tgt = e.target();
+
+      if (src === node || tgt === node) {
+        connectedEdges.push(e);
+      }
+    } // 2) Draw node's edges behind the node
 
 
-  for (var _i2 = 0; _i2 < parents.length; _i2++) {
-    r.drawCachedElement(context, parents[_i2], pxRatio, extent);
-  } // 3) Finally, draw leaf (normal) nodes on top
+    for (var _i = 0; _i < connectedEdges.length; _i++) {
+      var edge = connectedEdges[_i];
+      r.drawCachedElement(context, edge, pxRatio, extent);
+      removeEdge(edge);
+    } // 3) Draw the compound node itself
 
 
-  for (var _i3 = 0; _i3 < leaves.length; _i3++) {
-    r.drawCachedElement(context, leaves[_i3], pxRatio, extent);
+    r.drawCachedElement(context, node, pxRatio, extent); // 4) Recurse
+
+    var childCompounds = node.children().filter(function (c) {
+      return c.isParent();
+    });
+    var childLeaves = node.children().filter(function (c) {
+      return !c.isParent();
+    });
+
+    for (var _i2 = 0; _i2 < childCompounds.length; _i2++) {
+      var childCompound = childCompounds[_i2];
+      drawCompoundRecursive(childCompound);
+    }
+
+    for (var _i3 = 0; _i3 < childLeaves.length; _i3++) {
+      r.drawCachedElement(context, childLeaves[_i3], pxRatio, extent);
+    }
+  } // 2) Top-level compounds & leaves
+
+
+  var topLevelCompounds = eles.filter(function (e) {
+    return e.isNode();
+  }).filter(function (n) {
+    return n.isParent() && n.parent().empty();
+  });
+  var topLevelLeaves = eles.filter(function (e) {
+    return e.isNode();
+  }).filter(function (n) {
+    return !n.isParent() && n.parent().empty();
+  }); // 3) Draw top-level compounds (recursively handles child leaves)
+
+  for (var i = 0; i < topLevelCompounds.length; i++) {
+    drawCompoundRecursive(topLevelCompounds[i]);
+  } // 4) Now draw leftover edges -> behind top-level leaves
+  //    but above any compounds we just drew
+
+
+  for (var _i4 = 0; _i4 < remainingEdges.length; _i4++) {
+    var e = remainingEdges[_i4];
+
+    if (e) {
+      // not null => not drawn yet
+      r.drawCachedElement(context, e, pxRatio, extent);
+    }
+  } // 5) Finally, draw top-level leaves => they end up on top of leftover edges
+
+
+  for (var _i5 = 0; _i5 < topLevelLeaves.length; _i5++) {
+    r.drawCachedElement(context, topLevelLeaves[_i5], pxRatio, extent);
   }
 };
 
@@ -31567,7 +31634,6 @@ CRp$9.drawCachedNodes = function (context, eles, pxRatio, extent) {
 CRp$9.drawLayeredElements = function (context, eles, pxRatio, extent) {
   var r = this;
   var layers = r.data.lyrTxrCache.getLayers(eles, pxRatio);
-  console.log('Layers', layers);
 
   if (layers) {
     for (var i = 0; i < layers.length; i++) {
